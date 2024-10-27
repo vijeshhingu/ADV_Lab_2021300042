@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Finance Data Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        svg { margin: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Finance Dataset Visualizations</h1>
+
+    <h2>1. Bar Chart: Loan Duration Distribution</h2>
+    <svg id="barChart" width="600" height="400"></svg>
+
+    <h2>2. Pie Chart: Interest Rate Ranges</h2>
+    <svg id="pieChart" width="500" height="500"></svg>
+
+    <h2>3. Histogram: Income Distribution</h2>
+    <svg id="histogram" width="600" height="400"></svg>
+
+    <h2>4. Timeline Chart: Loan Amount over Customer IDs</h2>
+    <svg id="timelineChart" width="800" height="400"></svg>
+
+    <h2>5. Scatter Plot: Income vs Loan Amount</h2>
+    <svg id="scatterPlot" width="600" height="400"></svg>
+
+    <h2>6. Bubble Plot: Credit Score vs Loan Amount</h2>
+    <svg id="bubblePlot" width="600" height="400"></svg>
+
+    <script>
+        d3.csv("finance_dataset.csv").then(data => {
+            // Parse numerical fields
+            data.forEach(d => {
+                d.income = +d.income;
+                d.loan_amount = +d.loan_amount;
+                d.loan_duration_months = +d.loan_duration_months;
+                d.interest_rate = +d.interest_rate;
+                d.credit_score = +d.credit_score;
+            });
+
+            // 1. Bar Chart - Loan Duration Distribution
+            const loanDurations = d3.rollup(data, v => v.length, d => d.loan_duration_months);
+            const durationData = Array.from(loanDurations, ([duration, count]) => ({ duration, count }));
+            const svgBar = d3.select("#barChart");
+            const barX = d3.scaleBand().domain(durationData.map(d => d.duration)).range([0, 600]).padding(0.2);
+            const barY = d3.scaleLinear().domain([0, d3.max(durationData, d => d.count)]).range([400, 0]);
+            svgBar.selectAll("rect").data(durationData).enter().append("rect")
+                .attr("x", d => barX(d.duration)).attr("y", d => barY(d.count))
+                .attr("width", barX.bandwidth()).attr("height", d => 400 - barY(d.count))
+                .attr("fill", "steelblue");
+            svgBar.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(barX));
+            svgBar.append("g").call(d3.axisLeft(barY));
+
+            // 2. Pie Chart - Interest Rate Ranges
+            const rateRanges = d3.rollup(data, v => v.length, d => Math.floor(d.interest_rate));
+            const rateData = Array.from(rateRanges, ([rate, count]) => ({ rate, count }));
+            const svgPie = d3.select("#pieChart");
+            const radius = 250, color = d3.scaleOrdinal(d3.schemeCategory10);
+            const arc = d3.arc().innerRadius(0).outerRadius(radius);
+            const pie = d3.pie().value(d => d.count);
+            svgPie.append("g").attr("transform", "translate(250,250)").selectAll("path").data(pie(rateData)).enter()
+                .append("path").attr("d", arc).attr("fill", d => color(d.data.rate));
+
+            // 3. Histogram - Income Distribution
+            const svgHist = d3.select("#histogram");
+            const xHist = d3.scaleLinear().domain([0, d3.max(data, d => d.income)]).range([0, 600]);
+            const bins = d3.histogram().domain(xHist.domain()).thresholds(xHist.ticks(20))(data.map(d => d.income));
+            const yHist = d3.scaleLinear().domain([0, d3.max(bins, d => d.length)]).range([400, 0]);
+            svgHist.selectAll("rect").data(bins).enter().append("rect")
+                .attr("x", d => xHist(d.x0)).attr("y", d => yHist(d.length))
+                .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1).attr("height", d => 400 - yHist(d.length))
+                .attr("fill", "orange");
+            svgHist.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xHist));
+            svgHist.append("g").call(d3.axisLeft(yHist));
+
+            // 4. Timeline Chart - Loan Amount over Customer IDs
+            const svgTimeline = d3.select("#timelineChart");
+            const xTime = d3.scaleLinear().domain([1, data.length]).range([0, 800]);
+            const yTime = d3.scaleLinear().domain([0, d3.max(data, d => d.loan_amount)]).range([400, 0]);
+            const line = d3.line().x((d, i) => xTime(i+1)).y(d => yTime(d.loan_amount));
+            svgTimeline.append("path").datum(data).attr("d", line).attr("fill", "none").attr("stroke", "blue");
+            svgTimeline.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xTime));
+            svgTimeline.append("g").call(d3.axisLeft(yTime));
+
+            // 5. Scatter Plot - Income vs Loan Amount
+            const svgScatter = d3.select("#scatterPlot");
+            const xScatter = d3.scaleLinear().domain([0, d3.max(data, d => d.income)]).range([0, 600]);
+            const yScatter = d3.scaleLinear().domain([0, d3.max(data, d => d.loan_amount)]).range([400, 0]);
+            svgScatter.selectAll("circle").data(data).enter().append("circle")
+                .attr("cx", d => xScatter(d.income)).attr("cy", d => yScatter(d.loan_amount))
+                .attr("r", 5).attr("fill", "purple");
+            svgScatter.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xScatter));
+            svgScatter.append("g").call(d3.axisLeft(yScatter));
+
+            // 6. Bubble Plot - Credit Score vs Loan Amount with Loan Duration as Radius
+            const svgBubble = d3.select("#bubblePlot");
+            const xBubble = d3.scaleLinear().domain([600, 800]).range([0, 600]);
+            const yBubble = d3.scaleLinear().domain([0, d3.max(data, d => d.loan_amount)]).range([400, 0]);
+            const rBubble = d3.scaleSqrt().domain([0, d3.max(data, d => d.loan_duration_months)]).range([5, 20]);
+            svgBubble.selectAll("circle").data(data).enter().append("circle")
+                .attr("cx", d => xBubble(d.credit_score)).attr("cy", d => yBubble(d.loan_amount))
+                .attr("r", d => rBubble(d.loan_duration_months)).attr("fill", "green").attr("opacity", 0.6);
+            svgBubble.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xBubble));
+            svgBubble.append("g").call(d3.axisLeft(yBubble));
+        });
+    </script>
+</body>
+</html>
