@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Forest Dataset Visualizations</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        svg { margin: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Forest Dataset Visualizations</h1>
+
+    <h2>1. Bar Chart: Tree Type Distribution</h2>
+    <svg id="barChart" width="600" height="400"></svg>
+
+    <h2>2. Pie Chart: Canopy Spread Categories</h2>
+    <svg id="pieChart" width="500" height="500"></svg>
+
+    <h2>3. Histogram: Tree Height Distribution</h2>
+    <svg id="histogram" width="600" height="400"></svg>
+
+    <h2>4. Timeline Chart: Carbon Absorption by Age</h2>
+    <svg id="timelineChart" width="800" height="400"></svg>
+
+    <h2>5. Scatter Plot: Height vs Carbon Absorption</h2>
+    <svg id="scatterPlot" width="600" height="400"></svg>
+
+    <h2>6. Bubble Plot: Canopy Spread vs Carbon Absorption</h2>
+    <svg id="bubblePlot" width="600" height="400"></svg>
+
+    <script>
+        d3.csv("forest_dataset.csv").then(data => {
+            // Parse numerical fields
+            data.forEach(d => {
+                d.height_m = +d.height_m;
+                d.age_years = +d.age_years;
+                d.carbon_absorption_kg = +d.carbon_absorption_kg;
+                d.canopy_spread_m = +d.canopy_spread_m;
+            });
+
+            // 1. Bar Chart - Tree Type Distribution
+            const treeTypeCounts = d3.rollup(data, v => v.length, d => d.tree_type);
+            const treeTypeData = Array.from(treeTypeCounts, ([tree_type, count]) => ({ tree_type, count }));
+            const svgBar = d3.select("#barChart");
+            const xBar = d3.scaleBand().domain(treeTypeData.map(d => d.tree_type)).range([0, 600]).padding(0.2);
+            const yBar = d3.scaleLinear().domain([0, d3.max(treeTypeData, d => d.count)]).range([400, 0]);
+            svgBar.selectAll("rect").data(treeTypeData).enter().append("rect")
+                .attr("x", d => xBar(d.tree_type)).attr("y", d => yBar(d.count))
+                .attr("width", xBar.bandwidth()).attr("height", d => 400 - yBar(d.count))
+                .attr("fill", "forestgreen");
+            svgBar.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xBar));
+            svgBar.append("g").call(d3.axisLeft(yBar));
+
+            // 2. Pie Chart - Canopy Spread Categories
+            const canopyCategories = d3.rollup(data, v => v.length, d => Math.floor(d.canopy_spread_m));
+            const canopyData = Array.from(canopyCategories, ([spread, count]) => ({ spread, count }));
+            const svgPie = d3.select("#pieChart");
+            const radius = 250, color = d3.scaleOrdinal(d3.schemeCategory10);
+            const arc = d3.arc().innerRadius(0).outerRadius(radius);
+            const pie = d3.pie().value(d => d.count);
+            svgPie.append("g").attr("transform", "translate(250,250)").selectAll("path").data(pie(canopyData)).enter()
+                .append("path").attr("d", arc).attr("fill", d => color(d.data.spread));
+
+            // 3. Histogram - Tree Height Distribution
+            const svgHist = d3.select("#histogram");
+            const xHist = d3.scaleLinear().domain([0, d3.max(data, d => d.height_m)]).range([0, 600]);
+            const bins = d3.histogram().domain(xHist.domain()).thresholds(xHist.ticks(20))(data.map(d => d.height_m));
+            const yHist = d3.scaleLinear().domain([0, d3.max(bins, d => d.length)]).range([400, 0]);
+            svgHist.selectAll("rect").data(bins).enter().append("rect")
+                .attr("x", d => xHist(d.x0)).attr("y", d => yHist(d.length))
+                .attr("width", d => xHist(d.x1) - xHist(d.x0) - 1).attr("height", d => 400 - yHist(d.length))
+                .attr("fill", "sienna");
+            svgHist.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xHist));
+            svgHist.append("g").call(d3.axisLeft(yHist));
+
+            // 4. Timeline Chart - Carbon Absorption by Age
+            const svgTimeline = d3.select("#timelineChart");
+            const xTimeline = d3.scaleLinear().domain([0, d3.max(data, d => d.age_years)]).range([0, 800]);
+            const yTimeline = d3.scaleLinear().domain([0, d3.max(data, d => d.carbon_absorption_kg)]).range([400, 0]);
+            const line = d3.line().x(d => xTimeline(d.age_years)).y(d => yTimeline(d.carbon_absorption_kg));
+            svgTimeline.append("path").datum(data).attr("d", line).attr("fill", "none").attr("stroke", "darkgreen");
+            svgTimeline.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xTimeline));
+            svgTimeline.append("g").call(d3.axisLeft(yTimeline));
+
+            // 5. Scatter Plot - Height vs Carbon Absorption
+            const svgScatter = d3.select("#scatterPlot");
+            const xScatter = d3.scaleLinear().domain([0, d3.max(data, d => d.height_m)]).range([0, 600]);
+            const yScatter = d3.scaleLinear().domain([0, d3.max(data, d => d.carbon_absorption_kg)]).range([400, 0]);
+            svgScatter.selectAll("circle").data(data).enter().append("circle")
+                .attr("cx", d => xScatter(d.height_m)).attr("cy", d => yScatter(d.carbon_absorption_kg))
+                .attr("r", 4).attr("fill", "teal");
+            svgScatter.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xScatter));
+            svgScatter.append("g").call(d3.axisLeft(yScatter));
+
+            // 6. Bubble Plot - Canopy Spread vs Carbon Absorption
+            const svgBubble = d3.select("#bubblePlot");
+            const xBubble = d3.scaleLinear().domain([0, d3.max(data, d => d.canopy_spread_m)]).range([0, 600]);
+            const yBubble = d3.scaleLinear().domain([0, d3.max(data, d => d.carbon_absorption_kg)]).range([400, 0]);
+            const rBubble = d3.scaleSqrt().domain([0, d3.max(data, d => d.height_m)]).range([3, 15]);
+            svgBubble.selectAll("circle").data(data).enter().append("circle")
+                .attr("cx", d => xBubble(d.canopy_spread_m)).attr("cy", d => yBubble(d.carbon_absorption_kg))
+                .attr("r", d => rBubble(d.height_m)).attr("fill", "darkorange").attr("opacity", 0.6);
+            svgBubble.append("g").attr("transform", "translate(0,400)").call(d3.axisBottom(xBubble));
+            svgBubble.append("g").call(d3.axisLeft(yBubble));
+        });
+    </script>
+</body>
+</html>
